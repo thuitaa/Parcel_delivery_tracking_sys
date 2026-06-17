@@ -1,4 +1,8 @@
-import streamlit as st
+try:
+    import streamlit as st
+except ImportError:
+    raise ImportError("The 'streamlit' package is required to run this app. Install it with: pip install streamlit")
+
 from backend import TrackingSystem
 
 st.set_page_config(page_title="SwiftRoute - Tracker", layout="wide")
@@ -43,3 +47,62 @@ with col1:
                     st.rerun()
             else:
                 st.error("All entry fields are required.")
+    st.write("---")
+    st.subheader("Dispatch Management")
+    if st.button("🚀 Dequeue & Deliver Next Parcel", use_container_width=True):
+        delivered = sys.process_next_delivery()
+        if delivered:
+            st.balloons()
+            st.success(f"Successfully processed and delivered: **{delivered.parcel_id}** bound for **{delivered.city}**!")
+            st.rerun()
+        else:
+            st.warning("The delivery queue is completely empty.")
+
+with col2:
+    st.header("System Lookup & Insights")
+    
+    # Tab views for sorting and searching metrics
+    tab1, tab2, tab3 = st.tabs(["🔍 Track & Search", "📋 Priority Sorted Queue", "🗄️ Full Master Ledger"])
+    
+    with tab1:
+        st.subheader("Instant ID Tracking (Hash Map Lookup)")
+        search_id = st.text_input("Enter exact Tracking ID:")
+        if search_id:
+            res = sys.find_by_id(search_id)
+            if res:
+                st.info(f"**Status:** {res.status} | **Client:** {res.name} | **Destination:** {res.city} | **Priority:** {res.priority}")
+            else:
+                st.error("No record matches that tracking token.")
+                
+        st.write("---")
+        st.subheader("Broad Criteria Exploration (Linear Search)")
+        s_query = st.text_input("Search parameter (Name/City):")
+        s_type = st.radio("Search Category", options=["name", "city"])
+        if s_query:
+            all_items = sys.get_all_parcels()
+            from backend import linear_search_parcels
+            matches = linear_search_parcels(all_items, s_query, s_type)
+            if matches:
+                for m in matches:
+                    st.warning(f"📌 **{m.parcel_id}** — {m.name} ({m.city}) | Status: {m.status}")
+            else:
+                st.text("No matching context records located.")
+
+    with tab2:
+        st.subheader("Next-in-line Queue View (Quick Sorted)")
+        sorted_queue = sys.get_priority_sorted_queue()
+        if sorted_queue:
+            for i, p in enumerate(sorted_queue):
+                if p.status != "Delivered":
+                    st.write(f"**{i+1}. [{p.parcel_id}]** Priority {p.priority} ➡️ {p.name} ({p.city}) — Status: `{p.status}`")
+        else:
+            st.write("No items pending delivery transit cycles.")
+
+    with tab3:
+        st.subheader("Global Centralized Database Matrix")
+        all_records = sys.get_all_parcels()
+        if all_records:
+            display_data = [{"ID": r.parcel_id, "Customer": r.name, "Destination": r.city, "Priority": r.priority, "Status": r.status} for r in all_records]
+            st.table(display_data)
+        else:
+            st.text("System database memory register contains zero logs.")
